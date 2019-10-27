@@ -1,0 +1,8 @@
+.project
+.settings/
+.vscode/
+target/
+nifi-BitcoinHistory-nar/target/
+nifi-BitcoinHistory-nar/.classpath
+nifi-BitcoinHistory-processors/target/
+nifi-BitcoinHistory-processors/.classpath
