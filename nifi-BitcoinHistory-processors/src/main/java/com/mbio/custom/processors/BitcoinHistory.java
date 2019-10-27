@@ -23,6 +23,9 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
+import java.sql.PreparedStatement;
+import java.sql.SQLException;
+import java.sql.Timestamp;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
@@ -51,6 +54,7 @@ import org.apache.nifi.annotation.documentation.CapabilityDescription;
 import org.apache.nifi.annotation.documentation.Tags;
 import org.apache.nifi.annotation.lifecycle.OnScheduled;
 import org.apache.nifi.components.PropertyDescriptor;
+import org.apache.nifi.dbcp.DBCPService;
 import org.apache.nifi.flowfile.FlowFile;
 import org.apache.nifi.flowfile.attributes.CoreAttributes;
 import org.apache.nifi.processor.AbstractProcessor;
@@ -72,6 +76,7 @@ public class BitcoinHistory extends AbstractProcessor {
 
     private static ObjectMapper mapper = new ObjectMapper();
     private AtomicReference<JAXBContext> jaxb = new AtomicReference<>();
+    private AtomicReference<PreparedStatement> stmt = new AtomicReference<>();
 
     private AtomicReference<Output> output = new AtomicReference<>();
 
@@ -100,6 +105,15 @@ public class BitcoinHistory extends AbstractProcessor {
         } catch (Exception e) {
             getLogger().error("Could not create JAXB context", e);
         }
+
+        DBCPService dbcpService = context.getProperty(ConfigUtil.DS_PROP).asControllerService(DBCPService.class);
+    try {
+      final PreparedStatement stmt = dbcpService.getConnection().prepareStatement(
+          "insert into bitcoin_history (history_time, open_price, high, low, close_price, btc_volume, usd_volume, weighted_price, rgs_dtm) values (?,?,?,?,?,?,?,?,?)");
+      this.stmt.set(stmt);
+    } catch (ProcessException | SQLException e) {
+      getLogger().error("Could not create PreparedStatment", e);
+    }
     }
 
     @Override
@@ -112,9 +126,11 @@ public class BitcoinHistory extends AbstractProcessor {
         final AtomicInteger jsonCounter = new AtomicInteger();
         final AtomicInteger xmlCounter = new AtomicInteger();
         final AtomicInteger recordsCounter = new AtomicInteger();
+        final AtomicInteger dbCounter = new AtomicInteger();
 
         final Set<BitcoinHistoryModel> jsonRecords = ConcurrentHashMap.newKeySet();
         final Set<BitcoinHistoryModel> xmlRecords = ConcurrentHashMap.newKeySet();
+        final Set<BitcoinHistoryModel> dbRecords = ConcurrentHashMap.newKeySet();
         final AtomicBoolean success = new AtomicBoolean(Boolean.TRUE);
 
         session.read(flowFile, new InputStreamCallback() {
@@ -140,6 +156,10 @@ public class BitcoinHistory extends AbstractProcessor {
                                 xmlRecords.add(history);
                             }
 
+                            if (isOutputDb()) {
+                                dbRecords.add(history);
+                              }
+
                         }
                     }
                 } catch (Exception e) {
@@ -157,9 +177,14 @@ public class BitcoinHistory extends AbstractProcessor {
             writeXml(session, flowFile, xmlRecords, xmlCounter);
         }
 
+        if (isOutputDb()) {
+            writeDb(dbRecords, dbCounter);
+          }
+
         session.adjustCounter(ConfigUtil.RECORDS_READ, recordsCounter.get(), true);
         session.adjustCounter(ConfigUtil.JSON_RECORDS, jsonCounter.get(), true);
         session.adjustCounter(ConfigUtil.XML_RECORDS, xmlCounter.get(), true);
+        session.adjustCounter(ConfigUtil.DB_RECORDS, dbCounter.get(), true);
 
         if (!success.get()) {
             session.transfer(flowFile, ConfigUtil.FAILURE);
@@ -265,6 +290,30 @@ public class BitcoinHistory extends AbstractProcessor {
         return history;
     }
 
+    private void writeDb(final Set<BitcoinHistoryModel> dbRecords, final AtomicInteger count) {
+
+        final PreparedStatement stmt = this.stmt.get();
+    
+        try {
+          for (final BitcoinHistoryModel history : dbRecords) {
+            stmt.setTimestamp(1, Timestamp.from(history.getTimestamp().toInstant()));
+            stmt.setDouble(2, history.getOpen());
+            stmt.setDouble(3, history.getHigh());
+            stmt.setDouble(4, history.getLow());
+            stmt.setDouble(5, history.getClose());
+            stmt.setDouble(6, history.getBtcVolume());
+            stmt.setDouble(7, history.getUsdVolume());
+            stmt.setDouble(8, history.getWeightedPrice());
+            stmt.setTimestamp(9, Timestamp.from(ZonedDateTime.now().toInstant()));
+            stmt.execute();
+            count.incrementAndGet();
+            getLogger().debug("Wrote {} to DB", new Object[] {history});
+          }
+        } catch (Exception e) {
+          getLogger().error("Could not insert into DB", e);
+        }
+      }
+
     private String getFilename(final FlowFile flowFile) {
         final String fileName = flowFile.getAttribute(CoreAttributes.FILENAME.key());
         return fileName.substring(0, fileName.lastIndexOf("."));
@@ -281,4 +330,9 @@ public class BitcoinHistory extends AbstractProcessor {
     private boolean isOutputXml() {
         return output.get() == Output.ALL || output.get() == Output.XML;
     }
+
+    private boolean isOutputDb() {
+        return output.get() == Output.ALL || output.get() == Output.DB;
+      }
+    
 }
