@@ -35,7 +35,7 @@
     <properties>
 		<commons.csv.version>1.6</commons.csv.version>
 		<jaxb.version>2.3.0.1</jaxb.version>
-		<jackson.version>2.9.8</jackson.version>
+		<jackson.version>2.9.10</jackson.version>
 	</properties>
 
     <dependencyManagement>

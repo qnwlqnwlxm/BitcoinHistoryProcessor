@@ -16,24 +16,97 @@
  */
 package com.mbio.custom.processors;
 
+import java.nio.file.Path;
+import java.nio.file.Paths;
+
 import org.apache.nifi.util.TestRunner;
 import org.apache.nifi.util.TestRunners;
 import org.junit.Before;
 import org.junit.Test;
 
-
 public class BitcoinHistoryTest {
-
+    private static final String TEST_FILE = "test.csv";
+    private static final String BAD_TEST_FILE = "bad.csv";
     private TestRunner testRunner;
 
+    private Path input;
+    private Path badInput;
+
     @Before
-    public void init() {
+    public void init() throws Exception {
         testRunner = TestRunners.newTestRunner(BitcoinHistory.class);
+        input = Paths.get(ClassLoader.getSystemResource(TEST_FILE).toURI());
+        badInput = Paths.get(ClassLoader.getSystemResource(BAD_TEST_FILE).toURI());
+        testRunner.setClustered(true);
     }
 
     @Test
-    public void testProcessor() {
+    public void testAllOutput() throws Exception {
+      
+      testRunner.enqueue(input);
+      testRunner.setProperty(ConfigUtil.OUTPUT, "ALL");
+      
+      testRunner.run();
+      
+      testRunner.assertQueueEmpty();
+      
+      testRunner.assertTransferCount(ConfigUtil.JSON, 1);
+      testRunner.assertTransferCount(ConfigUtil.XML, 1);
+      testRunner.assertTransferCount(ConfigUtil.FAILURE, 0);
+      
+      testRunner.shutdown();
+    }
 
+    @Test
+    public void testJsonOnlyOutput() throws Exception {
+      
+      testRunner.enqueue(input);
+      testRunner.setProperty(ConfigUtil.OUTPUT, "JSON");
+      
+      testRunner.run();
+      
+      testRunner.assertQueueEmpty();
+      
+      testRunner.assertTransferCount(ConfigUtil.JSON, 1);
+      testRunner.assertTransferCount(ConfigUtil.XML, 0);
+      testRunner.assertTransferCount(ConfigUtil.FAILURE, 0);
+      
+      testRunner.shutdown();
+    }
+
+    @Test
+    public void testXmlOnlyOutput() throws Exception {
+      
+      testRunner.enqueue(input);
+      testRunner.setProperty(ConfigUtil.OUTPUT, "XML");
+      
+      testRunner.run();
+      
+      testRunner.assertQueueEmpty();
+      
+      testRunner.assertTransferCount(ConfigUtil.JSON, 0);
+      testRunner.assertTransferCount(ConfigUtil.XML, 1);
+      testRunner.assertTransferCount(ConfigUtil.FAILURE, 0);
+      
+      testRunner.shutdown();
+    }
+
+    @Test
+    public void testBadOutput() throws Exception {
+      
+      testRunner.enqueue(badInput);
+      testRunner.setClustered(true);
+      testRunner.setProperty(ConfigUtil.OUTPUT, "XML");
+      
+      testRunner.run();
+      
+      testRunner.assertQueueEmpty();
+      
+      testRunner.assertTransferCount(ConfigUtil.JSON, 0);
+      testRunner.assertTransferCount(ConfigUtil.XML, 0);
+      testRunner.assertTransferCount(ConfigUtil.FAILURE, 1);
+      
+      testRunner.shutdown();
     }
 
 }
