@@ -36,6 +36,9 @@
 		<commons.csv.version>1.6</commons.csv.version>
 		<jaxb.version>2.3.0.1</jaxb.version>
 		<jackson.version>2.9.10</jackson.version>
+
+		<nifi.version>1.9.2</nifi.version>
+		<derby.version>10.14.2.0</derby.version>
 	</properties>
 
     <dependencyManagement>
@@ -74,6 +77,29 @@
 				<groupId>com.fasterxml.jackson.datatype</groupId>
 				<artifactId>jackson-datatype-jsr310</artifactId>
 				<version>${jackson.version}</version>
+			</dependency>
+
+			<dependency>
+				<groupId>org.apache.derby</groupId>
+				<artifactId>derbyclient</artifactId>
+				<version>${derby.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>org.apache.derby</groupId>
+				<artifactId>derbynet</artifactId>
+				<version>${derby.version}</version>
+			</dependency>
+
+			<dependency>
+				<groupId>org.apache.nifi</groupId>
+				<artifactId>nifi-dbcp-service-api</artifactId>
+				<version>${nifi.version}</version>
+			</dependency>
+			<dependency>
+				<groupId>org.apache.nifi</groupId>
+				<artifactId>nifi-dbcp-service</artifactId>
+				<version>${nifi.version}</version>
+				<scope>test</scope>
 			</dependency>
         </dependencies>
     </dependencyManagement>
